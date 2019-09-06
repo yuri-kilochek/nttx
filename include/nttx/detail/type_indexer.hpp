@@ -42,13 +42,9 @@ public:
     {}
 
     type_indexer(type_indexer&& other, allocator_type const& allocator)
-    : indices_(std::move(other.indices_), allocator)
-    , next_index_(other.next_index_)
-    {
-        if (other.indices_.empty()) {
-            other.next_index_ = 0;
-        }
-    }
+    : indices_(std::exchange(other.indices_, {}), allocator)
+    , next_index_(std::exchange(other.next_index_, 0))
+    {}
 
     type_indexer(type_indexer&& other)
     noexcept
@@ -68,11 +64,8 @@ public:
     noexcept(noexcept(this->indices_ = std::move(other.indices_)))
     {
         if (&other != this) {
-            indices_ = std::move(other.indices_);
-            next_index_ = other.next_index_;
-            if (other.indices_.empty()) {
-                other.next_index_ = 0;
-            }
+            indices_ = std::exchange(other.indices_, {});
+            next_index_ = std::exchange(other.next_index_, 0);
         }
         return *this;
     }
