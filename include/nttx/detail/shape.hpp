@@ -7,17 +7,28 @@
 namespace nttx::detail {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-struct component_storage_view {
-    std::byte* base;
-    std::size_t stride;
+struct component_meta_t {
+    std::size_t size;
+    std::size_t alignment;
 
     void (*default_construct)(void *at, std::size_t count);
-    void (*move_assign)(void *from, void *to, std::size_t count);
-    void (*destruct)(void *at, std::size_t count);
+    void (*move_assign)(void *from, void *to, std::size_t count) noexcept;
+    void (*destruct)(void *at, std::size_t count) noexcept;
+};
 
-    ~component_storage_view() {
+template <typename ComponentType>
+constexpr
+component_meta_t component_meta = {
+    .size = sizeof(ComponentType),
+    .alignment = alignof(ComponentType),
+    .destruct = [](void *at, std::size_t count) noexcept {
+        std::destroy_n(reinterpret_cast<ComponentType*>(at), count);
+    },
+};
 
-    }
+struct components_view {
+    std::byte* base;
+    component_meta_t const* meta;
 };
 
 template <typename Allocator>
