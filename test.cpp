@@ -10,6 +10,6 @@ int main() {
         V(V&&) = default;
     };
     auto& x = nttx::detail::erased_component_type::of<V>;
-    x.uninitialized_copy_n(nullptr, 0, nullptr);
+    x.copy_construct_at(nullptr, nullptr);
     std::cout << x.size;
 }

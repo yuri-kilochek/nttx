@@ -15,7 +15,7 @@ struct noncopyable
 {
     explicit
     noncopyable(std::string const& type_name)
-    : std::logic_error("noncopyable type: " + type_name)
+    : std::logic_error(type_name + " is noncopyable")
     {}
 
     explicit
