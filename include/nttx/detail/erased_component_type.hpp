@@ -1,7 +1,7 @@
 #ifndef NTTX_DETAIL_INCLUDE_DETAIL_ERASED_COMPONENT_TYPE
 #define NTTX_DETAIL_INCLUDE_DETAIL_ERASED_COMPONENT_TYPE
 
-#include <nttx/detail/global_component_type_registry.hpp>
+#include <nttx/detail/component_type_indexer.hpp>
 #include <nttx/noncopyable.hpp>
 #include <nttx/detail/relocate_at.hpp>
 #include <nttx/detail/uninitialized_relocate_n.hpp>
@@ -18,7 +18,7 @@ struct erased_component_type {
     std::size_t size;
     std::size_t alignment;
 
-    global_component_type_registry::index_type global_index;
+    component_type_indexer::index_type index;
 
     void (*copy_construct_at)(void *at, void const *from);
     void (*uninitialized_copy_n)(void const *from, std::size_t count, void *to);
@@ -39,7 +39,7 @@ struct erased_component_type {
             .size = sizeof(T),
             .alignment = alignof(T),
 
-            .global_index = global_component_type_registry::get_index<T>(),
+            .index = component_type_indexer::get_index<T>(),
 
             .copy_construct_at = [](void *at, void const *from) {
                 if constexpr (std::is_copy_constructible_v<T>) {
