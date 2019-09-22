@@ -8,24 +8,44 @@
 namespace nttx::detail {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-struct component_buffer_view {
-    std::byte* bytes = nullptr;
-    erased_component_type const* type = nullptr;
+struct component_buffer_view
+: strided_ptr<void>
+{
+    erased_component_type const& type;
+    intrusive_list_link<component_buffer_view> list_link;
 };
 
+template <typename Allocator>
 struct component_buffer {
-    component_array_view *views = nullptr;
-    std::size_t size = 0;
-    std::size_t capacity = 0;
-
-    template <typename ProtoAllocator>
-    void initialize_with(std::span<erased_component_type const*> types,
-                         erased_component_type const* new_type,
-                         ProtoAllocator const& proto_allocator = ProtoAllocator())
+    template <typename TypesForwardIterator>
+    explicit
+    component_buffer(TypesForwardIterator types_begin, TypesForwardIterator const& types_end,
+                     Allocator const& allocator)
+    : views_(std::distance(types_begin, types_end), allocator)
     {
-        auto allocator = rebind_allocator<component_buffer_view>(proto_allocator);
-
+        for (auto& view : views_) {
+            view.type = &*types;
+            ++types;
+        }
     }
+
+
+    ~component_buffer() {
+        for (auto& view : views_) {
+            if (view.stride != view.type.size) { continue; }
+            view.type.destroy_n(view.raw, size_);
+        }
+        allocator_.deallocate(views_[0].raw);
+    }
+
+    auto get_allocator() const
+    -> Allocator 
+    { return views_.get_allocator(); }
+
+private:
+    dynamic_array<component_buffer_view, Allocator> views_;
+    std::size_t size_ = 0;
+    std::size_t capacity_ = 0;
 };
 
 
