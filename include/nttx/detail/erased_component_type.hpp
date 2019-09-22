@@ -2,6 +2,7 @@
 #define NTTX_DETAIL_INCLUDE_DETAIL_ERASED_COMPONENT_TYPE
 
 #include <nttx/detail/component_type_indexer.hpp>
+#include <nttx/detail/construct_at.hpp>
 #include <nttx/noncopyable.hpp>
 #include <nttx/detail/relocate_at.hpp>
 #include <nttx/detail/uninitialized_relocate_n.hpp>
@@ -43,7 +44,7 @@ struct erased_component_type {
 
             .copy_construct_at = [](void *at, void const *from) {
                 if constexpr (std::is_copy_constructible_v<T>) {
-                    ::new(static_cast<void*>(at)) T(*static_cast<T const*>(from));
+                    detail::construct_at(static_cast<T*>(at), *static_cast<T const*>(from));
                 } else {
                     (void)at;
                     (void)from;
