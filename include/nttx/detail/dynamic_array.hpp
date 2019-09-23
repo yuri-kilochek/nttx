@@ -11,24 +11,81 @@ template <typename T, typename Allocator = std::allocator<T>>
 struct dynamic_array {
     using value_type = T;
     using allocator_type = Allocator;
-    using pointer = typename std::allocator_traits<allocator_type>::pointer;
-    using const_pointer = typename std::allocator_traits<allocator_type>::const_pointer;
+
+private:
+    using allocator_traits = std::allocator_traits<allocator_type>;
+
+public:
+    using pointer = typename allocator_traits::pointer;
+    using const_pointer = typename allocator_traits::const_pointer;
     using reference = value_type&;
     using const_reference = value_type const&;
-    using size_type = typename std::allocator_traits<allocator_type>::size_type;
-    using difference_type = typename std::allocator_traits<allocator_type>::difference_type;
+    using size_type = typename allocator_traits::size_type;
+    using difference_type = typename allocator_traits::difference_type;
     using iterator = value_type*;
     using const_iterator = value_type const*;
 
     dynamic_array()
-    
+    noexcept(noexcept(allocator_type()))
+    : dynamic_array(allocator_type())
+    {}
+
+    explicit
+    dynamic_array(allocator_type const& allocator)
+    noexcept
+    : allocator_(allocator)
+    {}
+
+    explicit
+    dynamic_array(size_type size, allocator_type const& allocator = allocator_type())
+    : dynamic_array(allocator)
+    { resize(size); }
+
+    explicit
+    dynamic_array(size_type size, value_type const& value,
+                  allocator_type const& allocator = allocator_type())
+    : dynamic_array(allocator)
+    { assign(size, value); }
+
+    template <typename ForwardIterator>
+    explicit
+    dynamic_array(ForwardIterator const& begin, ForwardIterator const& end,
+                  allocator_type const& allocator = allocator_type())
+    : dynamic_array(allocator)
+    { assign(begin, end); }
+
+    dynamic_array(dynamic_array const& other, allocator_type const& allocator)
+    : dynamic_array(other.begin(), other.end(), allocator)
+    {}
+
+    dynamic_array(dynamic_array const& other)
+    : dynamic_array(other, other.allocator_)
+    {}
+
+    dynamic_array(dynamic_array&& other, allocator_type const& allocator)
+    noexcept(allocator_traits::is_always_equal::value)
+    : allocator_(allocator)
+    {
+        if constexpr (!allocator_traits::is_always_equal::value) {
+            if (allocator_ != other.allocator_) {
+                assign(std::make_move_iterator(other.begin()),
+                       std::make_move_iterator(other.end()));
+                return;
+            }
+        }
+        std::swap(data_, other.data_);
+        std::swap(size_, other.size_);
+    }
+
+    dynamic_array(dynamic_array&& other)
+    noexcept
+    : data_(std::exchange(other.data_, nullptr))
+    , size_(std::exchange(other.size_, 0))
+    , allocator_(other.allocator_)
     {}
 
     ~dynamic_array() {
-        if (size_ != 0) {
-            std::destroy(begin(), end());
-            allocator_traits::deallocate(allocator_, data_, size_);
-        }
+        clear();
     }
 
     [[nodiscard]]
@@ -95,12 +152,11 @@ struct dynamic_array {
     { return std::to_address(data_); }
 
 private:
-    using allocator_traits = std::allocator_traits<allocator_type>;
 
     static_assert(std::is_same_v<value_type, typename allocator_traits::value_type>);
 
-    pointer data_;
-    size_type size_;
+    pointer data_ = nullptr;
+    size_type size_ = 0;
 
     [[no_unique_address]]
     allocator_type allocator_;
