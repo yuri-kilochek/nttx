@@ -54,28 +54,10 @@ public:
     : dynamic_array(allocator)
     { assign(begin, end); }
 
-    dynamic_array(dynamic_array const& other, allocator_type const& allocator)
-    : dynamic_array(other.begin(), other.end(), allocator)
-    {}
-
     dynamic_array(dynamic_array const& other)
-    : dynamic_array(other, other.allocator_)
+    : dynamic_array(other,
+                    allocator_traits::select_on_container_copy_construction(other.allocator_))
     {}
-
-    dynamic_array(dynamic_array&& other, allocator_type const& allocator)
-    noexcept(allocator_traits::is_always_equal::value)
-    : allocator_(allocator)
-    {
-        if constexpr (!allocator_traits::is_always_equal::value) {
-            if (allocator_ != other.allocator_) {
-                assign(std::make_move_iterator(other.begin()),
-                       std::make_move_iterator(other.end()));
-                return;
-            }
-        }
-        std::swap(data_, other.data_);
-        std::swap(size_, other.size_);
-    }
 
     dynamic_array(dynamic_array&& other)
     noexcept
@@ -84,8 +66,60 @@ public:
     , allocator_(other.allocator_)
     {}
 
+    explicit
+    dynamic_array(dynamic_array const& other, allocator_type const& allocator)
+    : dynamic_array(other.begin(), other.end(), allocator)
+    {}
+
+    explicit
+    dynamic_array(dynamic_array&& other, allocator_type const& allocator)
+    noexcept(allocator_traits::is_always_equal::value)
+    : allocator_(allocator)
+    {
+        if (other.allocator_ == allocator_) {
+            std::swap(data_, other.data_);
+            std::swap(size_, other.size_);
+        } else {
+            assign(std::make_move_iterator(other.begin()),
+                   std::make_move_iterator(other.end()));
+        }
+    }
+
     ~dynamic_array() {
         clear();
+    }
+
+    auto operator=(dynamic_array const& other)
+    -> dynamic_array&
+    {
+        if (this != &other) {
+            if (allocator_traits::propagate_on_container_copy_assignment::value 
+             && other.allocator_ != allocator_)
+            {
+                dynamic_array(other, other.allocator_).swap_with_allocator(*this);
+            } else {
+                assign(other.begin(), other.end());
+            }
+        }
+        return *this;
+    }
+
+    auto operator=(dynamic_array&& other)
+    noexcept(allocator_traits::propagate_on_container_move_assignment::value
+          || allocator_traits::is_always_equal::value)
+    -> dynamic_array&
+    {
+        if (this != &other) {
+            if (allocator_traits::propagate_on_container_move_assignment::value) {
+                dynamic_array(std::move(other)).swap_with_allocator(*this);
+            } else if (other.allocator_ == allocator_) {
+                other.swap_without_allocator(*this);
+            } else {
+                assign(std::make_move_iterator(other.begin()),
+                       std::make_move_iterator(other.end()));
+            }
+        }
+        return *this;
     }
 
     [[nodiscard]]
@@ -130,13 +164,13 @@ public:
     [[nodiscard]]
     auto operator[](size_type i)
     -> reference
-    { return data()[i]; }
+    { return data_[i]; }
 
     [[nodiscard]]
     auto operator[](size_type i)
     const
     -> const_reference
-    { return data()[i]; }
+    { return data_[i]; }
 
 
     [[nodiscard]]
@@ -151,8 +185,22 @@ public:
     -> value_type const*
     { return std::to_address(data_); }
 
-private:
 
+    void clear()
+    noexcept
+    {
+        if (size_ == 0) { return; }
+
+        for (auto& value : *this) {
+            allocator_traits::destroy(allocator_, std::addressof(value));
+        }
+        allocator_traits::deallocate(allocator_, data_, size_);
+
+        data_ = nullptr;
+        size_ = 0;
+    }
+
+private:
     static_assert(std::is_same_v<value_type, typename allocator_traits::value_type>);
 
     pointer data_ = nullptr;
